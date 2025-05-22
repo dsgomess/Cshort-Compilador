@@ -1,0 +1,19 @@
+int main() {
+    char c = 'x';
+    int numero = 42;
+    float pi = 3.14;
+    bool ativo = true;
+    string msg = "Olá, mundo!";
+
+    if (numero > 10) {
+        pi = pi + 1.0;
+    } else {
+        pi = pi - 1.0;
+    }
+
+    while (numero > 0) {
+        numero = numero - 1;
+    }
+
+    return;
+}

@@ -149,6 +149,13 @@ TOKEN AnaLex(FILE *fd)
                 token.codigo = VIRGULA;
                 return token;
             }
+            else if (c == ';')
+            {
+                estado = 53;
+                token.cat = SINAL;
+                token.codigo = PONTO_VIRGULA;
+                return token;
+            }       
             else if (c == '[')
             {
                 estado = 46;
@@ -301,59 +308,57 @@ TOKEN AnaLex(FILE *fd)
                 return token;
             }
             break;
+        // Estado 9 - Após ler o caractere de abertura '
         case 9:
-            if (c == '\'')
-            {
-                errorLex(contLinha, c);
+            if (c == '\\') {
+                estado = 12; // caractere especial (\n ou \0)
             }
-            else if (c == '\\')
-            {
-                estado = 12;
-            }
-            else if (isprint(c))
-            {
+            else if (isprint(c) && c != '\'' && c != '\\') {
                 estado = 10;
-                lexema[tamL++] = c;
-                lexema[tamL] = '\0';
+                token.caractere = c; // <-- guarda o caractere lido
             }
-            else
-            {
+            else {
                 errorLex(contLinha, c);
             }
             break;
+
+        // Estado 10 - Espera o caractere de fechamento '
         case 10:
-            if (c == '\'')
-            {
-                estado = 0;
-
+            if (c == '\'') {
                 token.cat = CONST_CHAR;
-
-                strcpy(token.lexema, lexema);
-
                 return token;
             }
-            else
-            {
+            else {
                 errorLex(contLinha, c);
             }
             break;
-        case 12:
-            if (c == 'n')
-            {
-                estado = 10;
-                strcpy(lexema, "enter");
-            }
-            else if (c == '0')
-            {
-                estado = 10;
 
-                strcpy(lexema, "null");
+        // Estado 12 - Após ler barra invertida \
+        case 12:
+            if (c == 'n') {
+                token.caractere = '\n';
+                estado = 13;
             }
-            else
-            {
+            else if (c == '0') {
+                token.caractere = '\0';
+                estado = 13;
+            }
+            else {
                 errorLex(contLinha, c);
             }
             break;
+
+        // Estado 13 - Espera o caractere de fechamento ' após \n ou \0
+        case 13:
+            if (c == '\'') {
+                token.cat = CONST_CHAR;
+                return token;
+            }
+            else {
+                errorLex(contLinha, c);
+            }
+            break;
+
         case 15:
             if (c == '\"')
             {
