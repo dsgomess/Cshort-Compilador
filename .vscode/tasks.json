@@ -3,13 +3,13 @@
         {
             "type": "cppbuild",
             "label": "C/C++: gcc.exe build active file",
-            "command": "D:\\Falcon\\MinGW\\bin\\gcc.exe",
+            "command": "gcc",
             "args": [
-                "-fdiagnostics-color=always",
-                "-g",
-                "${file}",
+                "main.c",
+                "analex.c",
+                "FuncAuxCshort.c",
                 "-o",
-                "${fileDirname}\\${fileBasenameNoExtension}.exe"
+                "lexmain.exe"
             ],
             "options": {
                 "cwd": "${fileDirname}"

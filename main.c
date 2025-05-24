@@ -9,47 +9,106 @@ TOKEN tk;
 
 // Função para imprimir as informações de cada token
 void printToken(TOKEN tk) {
-    printf("Token -> Categoria: %d | ", tk.cat);
-
+    // Primeira etapa: verificar a categoria
     switch (tk.cat) {
         case ID:
-            printf("ID: %s\n", tk.lexema);
+            printf("ID : %s\n", tk.lexema);
             break;
+
         case PAL_RESERV:
-            printf("Palavra Reservada (código): %d\n", tk.codigo);
+            printf("Palavra Reservada ");
+            switch (tk.codigo) {
+                case 1: printf(": void\n"); break;
+                case 2: printf(": char\n"); break;
+                case 3: printf(": int\n"); break;
+                case 4: printf(": float\n"); break;
+                case 5: printf(": bool\n"); break;
+                case 6: printf(": if\n"); break;
+                case 7: printf(": else\n"); break;
+                case 8: printf(": while\n"); break;
+                case 9: printf(": for\n"); break;
+                case 10: printf(": return\n"); break;
+                default: printf(": Desconhecida\n"); break;
+            }
             break;
-        case CONST_INT:
-            printf("Constante Inteira: %d\n", tk.valInt);
-            break;
-        case CONST_FLOAT:
-            printf("Constante Real: %f\n", tk.valFloat);
-            break;
-        case CONST_CHAR:
-            printf("Constante Char: '%c'\n", tk.caractere);
-            break;
-        case LITERAL:
-            printf("Literal (string): \"%s\"\n", tk.lexema);
-            break;
-        case OP_ARIT:
-            printf("Operador Aritmético (código): %d\n", tk.codigo);
-            break;
-        case OP_RELAC:
-            printf("Operador Relacional (código): %d\n", tk.codigo);
-            break;
-        case OP_LOGIC:
-            printf("Operador Lógico (código): %d\n", tk.codigo);
-            break;
+
         case SINAL:
-            printf("Sinal (código): %d\n", tk.codigo);
+            printf("Sinal ");
+            switch (tk.codigo) {
+                case 1: printf(": (\n"); break;
+                case 2: printf(": )\n"); break;
+                case 3: printf(": {\n"); break;
+                case 4: printf(": }\n"); break;
+                case 5: printf(": [\n"); break;
+                case 6: printf(": ]\n"); break;
+                case 7: printf(": ,\n"); break;
+                case 8: printf(": ;\n"); break;
+                case 9: printf(": &\n"); break;
+                default: printf(": Desconhecido\n"); break;
+            }
             break;
+
+        case CONST_CHAR:
+            printf("Constante Char : '%c'\n", tk.caractere);
+            break;
+
+        case CONST_INT:
+            printf("Constante Inteira : %d\n", tk.valInt);
+            break;
+
+        case CONST_FLOAT:
+            printf("Constante Real : %f\n", tk.valFloat);
+            break;
+
+        case LITERAL:
+            printf("Literal : \"%s\"\n", tk.lexema);
+            break;
+
+        case OP_ARIT:
+            printf("Operador Aritmético ");
+            switch (tk.codigo) {
+                case 1: printf(": =\n"); break;
+                case 2: printf(": +\n"); break;
+                case 3: printf(": -\n"); break;
+                case 4: printf(": *\n"); break;
+                case 5: printf(": /\n"); break;
+                default: printf(": Desconhecido\n"); break;
+            }
+            break;
+
+        case OP_RELAC:
+            printf("Operador Relacional ");
+            switch (tk.codigo) {
+                case 1: printf(": ==\n"); break;
+                case 2: printf(": !=\n"); break;
+                case 3: printf(": <=\n"); break;
+                case 4: printf(": >=\n"); break;
+                case 5: printf(": <\n"); break;
+                case 6: printf(": >\n"); break;
+                default: printf(": Desconhecido\n"); break;
+            }
+            break;
+
+        case OP_LOGIC:
+            printf("Operador Lógico ");
+            switch (tk.codigo) {
+                case 1: printf(": &&\n"); break;
+                case 2: printf(": ||\n"); break;
+                case 3: printf(": !\n"); break;
+                default: printf(": Desconhecido\n"); break;
+            }
+            break;
+
         case FIM_PROG:
             printf("Fim de Programa.\n");
             break;
+
         default:
-            printf("Token não reconhecido.\n");
+            printf("Token desconhecido.\n");
             break;
     }
 }
+
 
 int main() {
     fd = fopen("teste.cshort", "r");
