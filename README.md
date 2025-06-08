@@ -34,7 +34,9 @@ Este projeto implementa um **analisador léxico** para a linguagem de programaç
 1. Compile o projeto:
 
 ```bash
-gcc main.c analex.c FuncAuxCshort.c -o lexmain
+gcc -o lexmain main.c analex.c FuncAuxCshort.c
+./lexmain
+
 
  📄 Como funciona
 O analisador lê o arquivo teste.cshort e imprime no terminal todos os tokens reconhecidos, junto com suas categorias:
