@@ -1,7 +1,5 @@
-// Inclua o AnaLex.h corretamente
 #include "AnaLex.h"
 
-// Bibliotecas padrão
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -12,15 +10,15 @@
 int contLinha = 1;
 
 //---------------------------------------------------------//
-//             FUNÇÃO ANALEX - VERSÃO CORRIGIDA            //
+//                      FUNÇÃO ANALEX                      //
 //---------------------------------------------------------//
 TOKEN AnaLex(FILE *fd)
 {
     int estado = 0;
     int tamL = 0;
     int tamD = 0;
-    char lexema[TAM_MAX_LEXEMA] = ""; // Usar a constante do .h
-    char digitos[TAM_NUM] = "";       // Usar a constante do .h
+    char lexema[TAM_MAX_LEXEMA] = ""; 
+    char digitos[TAM_NUM] = "";       
     char c;
     TOKEN token;
 
