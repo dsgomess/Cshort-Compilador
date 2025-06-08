@@ -7,10 +7,6 @@
 #include <ctype.h>
 #include <string.h>
 
-// REMOVA OS DEFINES DAQUI! ELES DEVEM ESTAR NO AnaLex.h
-// #define TAM_LEXEMA 50
-// #define TAM_LITERAL 50
-// #define TAM_NUM 20
 
 // Variáveis globais (se ainda precisar delas fora desta função)
 int contLinha = 1;
