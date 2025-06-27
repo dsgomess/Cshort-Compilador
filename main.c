@@ -2,10 +2,12 @@
 #include <stdlib.h>
 #include "Analex.h"
 #include "FuncAuxCshort.h"
+#include "AnaSint.h"
 
-FILE *fd;
+
 TOKEN tk;
-
+TOKEN lookahead;
+FILE *fd;
 
 // Função para imprimir as informações de cada token
 void printToken(TOKEN tk) {
@@ -111,23 +113,33 @@ void printToken(TOKEN tk) {
 
 
 int main() {
+    // Abrir o arquivo de teste
     fd = fopen("teste.cshort", "r");
-
     if (fd == NULL) {
         fprintf(stderr, "Erro ao abrir o arquivo 'teste.cshort'.\n");
         return 1;
     }
 
-    printf("[========== INICIO - Analise Lexica ==========]\n");
-
-
+    // --- ETAPA 1: ANÁLISE LÉXICA PURA ---
+    // Vamos imprimir todos os tokens que o léxico gera, para inspeção.
+    printf("\n[--- ETAPA 1: Verificando Saída do Analisador Léxico ---]\n\n");
     do {
         tk = AnaLex(fd);
         printToken(tk);
     } while (tk.cat != FIM_PROG);
+    printf("\n[--- FIM DA ETAPA 1 ---]\n\n");
 
-    printf("[========== FIM - Analise Lexica ==========]\n");
 
+    // --- ETAPA 2: ANÁLISE SINTÁTICA ---
+    printf("[--- ETAPA 2: Executando Análise Sintática ---]\n\n");
+    
+    // VOLTA O PONTEIRO DE LEITURA PARA O INÍCIO DO ARQUIVO
+    rewind(fd); 
+    
+    // Chama o parser para analisar do zero
+    prog();
+
+    // Fecha o arquivo no final de tudo
     fclose(fd);
     return 0;
 }
