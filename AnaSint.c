@@ -7,6 +7,7 @@
 #include "AnaLex.h"
 #include "AnaSint.h" // Garanta que o nome do seu cabeçalho está correto
 #include "FuncAuxCshort.h"
+#include "TabSimb.h"
 
 // --- Variáveis Globais para o Parser com Lookahead ---
 TOKEN tk;        // O token ATUAL que estamos analisando
@@ -35,6 +36,8 @@ void proximo_token() {
     if (tk.cat != FIM_PROG) {
         lookahead = AnaLex(fd);
     }
+    printf("[DEBUG] Linha %d | tk: código=%d, cat=%d | lookahead: código=%d, cat=%d\n",
+        contLinha, tk.codigo, tk.cat, lookahead.codigo, lookahead.cat);
 }
 
 // Consome o token esperado e avança para o próximo
@@ -198,73 +201,107 @@ void tipos_param() {
 // REGRA: cmd ::= if | while | for | return | atrib | chamada_func | bloco
 void cmd() {
     PrintNodo("Comando", AVANCA);
+
     if (tk.codigo == IF) {
-        consome(IF); // CORRIGIDO
+        consome(IF);
         consome(ABRE_PAR);
         expr();
         consome(FECHA_PAR);
-        cmd();
+        cmd(); // corpo do if
         if (tk.codigo == ELSE) {
-            consome(ELSE); // CORRIGIDO
-            cmd();
+            consome(ELSE);
+            cmd(); // corpo do else
         }
+
     } else if (tk.codigo == WHILE) {
-        consome(WHILE); // CORRIGIDO
+        consome(WHILE);
         consome(ABRE_PAR);
         expr();
         consome(FECHA_PAR);
         cmd();
+
     } else if (tk.codigo == FOR) {
-        consome(FOR); // CORRIGIDO
+        consome(FOR);
         consome(ABRE_PAR);
-        if (tk.codigo != PONTO_VIRGULA) atrib();
+        if (tk.codigo != PONTO_VIRGULA)
+            atrib();
+        else
+            consome(PONTO_VIRGULA);
+
+        if (tk.codigo != PONTO_VIRGULA)
+            expr();
         consome(PONTO_VIRGULA);
-        if (tk.codigo != PONTO_VIRGULA) expr();
-        consome(PONTO_VIRGULA);
-        if (tk.codigo != FECHA_PAR) atrib();
+
+        if (tk.codigo != FECHA_PAR)
+            atrib();
         consome(FECHA_PAR);
         cmd();
+
     } else if (tk.codigo == RETURN) {
-        consome(RETURN); // CORRIGIDO
-        if (tk.codigo != PONTO_VIRGULA) expr();
+        consome(RETURN);
+        if (tk.codigo != PONTO_VIRGULA)
+            expr();
         consome(PONTO_VIRGULA);
+
     } else if (tk.codigo == ABRE_CHAVE) {
         consome(ABRE_CHAVE);
-        while (tk.codigo != FECHA_CHAVE && tk.cat != FIM_PROG) cmd();
+        while (tk.codigo != FECHA_CHAVE && tk.cat != FIM_PROG) {
+            cmd();
+        }
         consome(FECHA_CHAVE);
+
     } else if (tk.cat == ID) {
-        expr();
-        consome(PONTO_VIRGULA);
+        // Verifica se é atribuição ou apenas uma expressão
+        if (lookahead.codigo == ATRIBUICAO || lookahead.codigo == ABRE_COL) {
+            atrib(); // consome o ponto-e-vírgula internamente
+        } else {
+            expr();
+            consome(PONTO_VIRGULA);
+        }
+
     } else if (tk.codigo == PONTO_VIRGULA) {
         consome(PONTO_VIRGULA);
+
     } else {
-        errorSint(contLinha, "Comando invalido.");
+        errorSint(contLinha, "Comando inválido.");
     }
+
     PrintNodo("Fim do Comando", RETROCEDE);
 }
 
+
 void atrib() {
     PrintNodo("Atribuicao", AVANCA);
+
     consome(ID);
+
     if (tk.codigo == ABRE_COL) {
         consome(ABRE_COL);
         expr();
         consome(FECHA_COL);
     }
+
     consome(ATRIBUICAO);
     expr();
+
+    consome(PONTO_VIRGULA); // ← essencial para evitar erro de linha 22
+
     PrintNodo("Fim da Atribuicao", RETROCEDE);
 }
+
 
 // REGRA: expr ::= expr_simp [ op_rel expr_simp ]
 void expr() {
     PrintNodo("Expressao", AVANCA);
+
+    // Esta parte para atribuições está correta
     if (tk.cat == ID && lookahead.codigo == ATRIBUICAO) {
         atrib();
     } else {
         expr_simp();
         if (tk.cat == OP_RELAC) {
-            consome(OP_RELAC); // CORRIGIDO
+            // CORREÇÃO AQUI: Passamos o código do token atual, e não a categoria.
+            consome(tk.codigo); 
             expr_simp();
         }
     }

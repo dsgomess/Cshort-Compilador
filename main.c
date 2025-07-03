@@ -112,34 +112,28 @@ void printToken(TOKEN tk) {
 }
 
 
-int main() {
-    // Abrir o arquivo de teste
-    fd = fopen("teste.cshort", "r");
-    if (fd == NULL) {
-        fprintf(stderr, "Erro ao abrir o arquivo 'teste.cshort'.\n");
-        return 1;
+int main(int argc, char *argv[]) {
+
+    // 1. Verifica se o usuário digitou o nome do arquivo ao executar
+    if (argc < 2) {
+        printf("Erro: Faltou o nome do arquivo de entrada.\n");
+        printf("Modo de usar: .\\lexmain nome_do_arquivo.cshort\n");
+        exit(1); // Encerra o programa se não houver nome de arquivo
     }
 
-    // --- ETAPA 1: ANÁLISE LÉXICA PURA ---
-    // Vamos imprimir todos os tokens que o léxico gera, para inspeção.
-    printf("\n[--- ETAPA 1: Verificando Saída do Analisador Léxico ---]\n\n");
-    do {
-        tk = AnaLex(fd);
-        printToken(tk);
-    } while (tk.cat != FIM_PROG);
-    printf("\n[--- FIM DA ETAPA 1 ---]\n\n");
+    // 2. Tenta abrir o arquivo que o usuário digitou (argv[1])
+    fd = fopen(argv[1], "r"); 
 
+    // 3. Verifica se o arquivo realmente existe e pôde ser aberto
+    if (fd == NULL) {
+        printf("Erro: Nao foi possivel abrir o arquivo '%s'.\n", argv[1]);
+        exit(1);
+    }
 
-    // --- ETAPA 2: ANÁLISE SINTÁTICA ---
-    printf("[--- ETAPA 2: Executando Análise Sintática ---]\n\n");
-    
-    // VOLTA O PONTEIRO DE LEITURA PARA O INÍCIO DO ARQUIVO
-    rewind(fd); 
-    
-    // Chama o parser para analisar do zero
-    prog();
+    // 4. Se tudo deu certo, chama o seu analisador sintático
+    prog(); 
 
-    // Fecha o arquivo no final de tudo
+    // 5. Fecha o arquivo no final
     fclose(fd);
     return 0;
 }
