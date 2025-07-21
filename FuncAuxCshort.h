@@ -1,19 +1,30 @@
+// Em FuncAuxCshort.h
+
 #ifndef FUNCAUXCSHORT_H
 #define FUNCAUXCSHORT_H
 
-// Constantes para indentação usada nas funções PrintNodo
-#define AVANCA 1
-#define MANTEM 2
-#define RETROCEDE 3
+// Enum para controlar a indentação da árvore sintática
+typedef enum {
+    AVANCA,
+    MANTEM,
+    RETROCEDE
+} OperacaoNodo;
 
-// Declaração da string de indentação (definida em FuncAuxCshort.c)
-extern char TABS[50];
+// Protótipos das funções auxiliares
 
-// Funções auxiliares
-void errorSint(int contLinha, char caracter[]);
-void errorLex(int contLinha, char caracter);
+// Imprime uma mensagem de erro léxico e encerra
+void errorLex(int linha, char c);
 
-void PrintNodo(char info[], int movim);
-void PrintNodoInt(int val, int movim);
+// Imprime uma mensagem de erro sintático e encerra
+void errorSint(int linha, const char* msg); // <<< CORRIGIDO: usa 'const char*'
 
-#endif
+// Imprime um nodo da árvore sintática (versão para strings)
+void PrintNodo(const char* nome, OperacaoNodo op);
+
+// Imprime um nodo da árvore sintática (versão para inteiros)
+void PrintNodoInt(int valor, OperacaoNodo op);
+// novo
+void emit(const char* instrucao);
+void emit_com_valor_int(const char* instrucao, int valor);
+
+#endif // FUNCAUXCSHORT_H

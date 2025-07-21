@@ -14,12 +14,12 @@ void printToken(TOKEN tk) {
     // Primeira etapa: verificar a categoria
     switch (tk.cat) {
         case ID:
-            printf("ID : %s\n", tk.lexema);
+            printf("ID : %s\n", tk.val.lexema);
             break;
 
         case PAL_RESERV:
             printf("Palavra Reservada ");
-            switch (tk.codigo) {
+            switch (tk.val.codigo) {
                 case 1: printf(": void\n"); break;
                 case 2: printf(": char\n"); break;
                 case 3: printf(": int\n"); break;
@@ -36,7 +36,7 @@ void printToken(TOKEN tk) {
 
         case SINAL:
             printf("Sinal ");
-            switch (tk.codigo) {
+            switch (tk.val.codigo) {
                 case 1: printf(": (\n"); break;
                 case 2: printf(": )\n"); break;
                 case 3: printf(": {\n"); break;
@@ -51,24 +51,24 @@ void printToken(TOKEN tk) {
             break;
 
         case CONST_CHAR:
-            printf("Constante Char : '%c'\n", tk.caractere);
+            printf("Constante Char : '%c'\n", tk.val.caractere);
             break;
 
         case CONST_INT:
-            printf("Constante Inteira : %d\n", tk.valInt);
+            printf("Constante Inteira : %d\n", tk.val.valInt);
             break;
 
         case CONST_FLOAT:
-            printf("Constante Real : %f\n", tk.valFloat);
+            printf("Constante Real : %f\n", tk.val.valFloat);
             break;
 
         case LITERAL:
-            printf("Literal : \"%s\"\n", tk.lexema);
+            printf("Literal : \"%s\"\n", tk.val.lexema);
             break;
 
         case OP_ARIT:
             printf("Operador Aritmético ");
-            switch (tk.codigo) {
+            switch (tk.val.codigo) {
                 case 1: printf(": =\n"); break;
                 case 2: printf(": +\n"); break;
                 case 3: printf(": -\n"); break;
@@ -80,7 +80,7 @@ void printToken(TOKEN tk) {
 
         case OP_RELAC:
             printf("Operador Relacional ");
-            switch (tk.codigo) {
+            switch (tk.val.codigo) {
                 case 1: printf(": ==\n"); break;
                 case 2: printf(": !=\n"); break;
                 case 3: printf(": <=\n"); break;
@@ -93,7 +93,7 @@ void printToken(TOKEN tk) {
 
         case OP_LOGIC:
             printf("Operador Lógico ");
-            switch (tk.codigo) {
+            switch (tk.val.codigo) {
                 case 1: printf(": &&\n"); break;
                 case 2: printf(": ||\n"); break;
                 case 3: printf(": !\n"); break;

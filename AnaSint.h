@@ -1,35 +1,29 @@
-#ifndef ANASINT_CSHORT_H
-#define ANASINT_CSHORT_H
+#ifndef ANASINT_H
+#define ANASINT_H
 
-#include "AnaLex.h" // Inclui o nosso analisador léxico
 #include <stdio.h>
+#include "AnaLex.h"
 
-// --- Variáveis Globais ---
-// Estas são as mesmas que você já tinha, elas continuarão sendo úteis.
+// --- Variáveis Globais (usadas em múltiplos arquivos) ---
 extern TOKEN tk;
-extern TOKEN lookahead; // Token de lookahead para prever o próximo token
+extern TOKEN lookahead;
 extern FILE *fd;
 extern int contLinha;
 
-// Funções do analisador sintático para a linguagem Cshort
+// --- Protótipos das Funções do Analisador Sintático ---
+void prog();
+void declaracao_global();
+void decl_var_resto(int tipo_declaracao);
+void func_resto(int tipo_retorno);
+void decl();
+void decl_var();
+void tipo();
+void tipos_param();
+void cmd();
+void atrib();
+void expr();
+void expr_simp();
+void termo();
+void fator();
 
-void prog();        // Regra inicial: prog ::= { decl ';' | func }
-
-void decl();        // Regra: decl ::= tipo decl_var { ',' decl_var } | (protótipo de função)
-void func();        // Regra: func ::= ( tipo | void ) id '(' tipos_param ')' '{' ... '}'
-
-void decl_var();    // Regra: decl_var ::= id [ '[' intcon ']' ]
-void tipo();        // Regra: tipo ::= char | int | float | bool
-void tipos_param(); // Regra: tipos_param ::= void | tipo (id | &id | id['['']']) { ',' ... }
-
-void cmd();         // Regra: cmd ::= if | while | for | return | atrib | chamada_func | bloco
-void atrib();       // Regra: atrib ::= id [ '[' expr ']' ] = expr
-// A chamada de função é um tipo de comando, podemos tratá-la dentro de cmd() ou fator()
-
-void expr();        // Regra: expr ::= expr_simp [ op_rel expr_simp ]
-void expr_simp();   // Regra: expr_simp ::= [ + | - ] termo { ( + | - | || ) termo }
-void termo();       // Regra: termo ::= fator { ( * | / | && ) fator }
-void fator();       // Regra: fator ::= id | intcon | realcon | charcon | chamada_func | '(' expr ')' | '!' fator
-void op_rel();      // Regra: op_rel ::= == | != | <= | < | >= | >
-
-#endif // ANASINT_CSHORT_H
+#endif // ANASINT_H

@@ -1,89 +1,128 @@
-#include "TabSimb.h"
-#include <stdbool.h>
-#include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "TabSimb.h"
 
-// Inicializa a tabela de símbolos
-void Iniciar_tabela() {
-    tabela_idef.tamTab = 0;
-}
+// Tabela de Símbolos Global (única)
+static Simbolo* tabela_hash[MAX_TABELA_HASH];
+// Contador para o nível de escopo atual
+static int nivel_atual = 0;
 
-// Imprime a tabela de símbolos
-void Imprimir_tabela() {
-    printf("\nTabela de Símbolos:\n");
-    printf("------------------------------------------------------------------------------------\n");
-    
-    printf("| %-6s | %-10s | %-10s | %-6s | %-10s | %-6s |\n",
-           "Índice", "Lexema", "Tipo", "Escopo", "Classe", "Zombie");
-    printf("------------------------------------------------------------------------------------\n");
-
-    for (int i = 0; i < tabela_idef.tamTab; i++) {
-        printf("| %-6d | %-10s | %-10d | %-6d | %-10s | %-6d |\n",
-               i,
-               tabela_idef.tabela_simb[i].lexema,
-               tabela_idef.tabela_simb[i].tipo,
-               tabela_idef.tabela_simb[i].escopo,
-               tabela_idef.tabela_simb[i].classe, 
-               tabela_idef.tabela_simb[i].zombie);
+// Função de Hash
+static unsigned int hash(char *lexema) {
+    unsigned int hash_val = 0;
+    while (*lexema != '\0') {
+        hash_val = 31 * hash_val + *lexema++;
     }
-    printf("------------------------------------------------------------------------------------\n");
+    return hash_val % MAX_TABELA_HASH;
 }
 
+void ts_inicializa() {
+    nivel_atual = 0;
+    for (int i = 0; i < MAX_TABELA_HASH; i++) {
+        tabela_hash[i] = NULL;
+    }
+    printf("[TABELA DE SÍMBOLOS] Tabela inicializada. Escopo global (nível 0) ativo.\n");
+}
 
-// Busca um lexema na tabela de símbolos
-int Buscar_tabela(const char lexema[]) {
-    for (int i = 0; i < tabela_idef.tamTab; i++) {
-        if (strcmp(tabela_idef.tabela_simb[i].lexema, lexema) == 0) {
-            return i;  // Retorna o índice se encontrar o lexema
+void ts_entra_escopo() {
+    nivel_atual++;
+    printf("[TABELA DE SÍMBOLOS] Entrou no escopo de nível: %d\n", nivel_atual);
+}
+
+void ts_sai_escopo() {
+    printf("[TABELA DE SÍMBOLOS] Saindo do escopo de nível: %d\n", nivel_atual);
+    if (nivel_atual == 0) return; // Não pode sair do escopo global
+
+    // Marca os símbolos do nível atual como "zumbis"
+    for (int i = 0; i < MAX_TABELA_HASH; i++) {
+        Simbolo* s = tabela_hash[i];
+        while (s != NULL) {
+            if (s->nivel == nivel_atual) {
+                // Parâmetros e variáveis locais ficam "mortos" (zumbis)
+                // para não serem encontrados em futuras buscas de escopo.
+                s->zombie = ZOMBIE_MORTO;
+            }
+            s = s->proximo;
         }
     }
-    return -1;  // Retorna -1 se não encontrar o lexema
+    nivel_atual--;
 }
 
-// Busca um lexema em um escopo específico
-int Buscar_escopo(char lexema[], int escopo) {
-    for (int i = 0; i < tabela_idef.tamTab; i++) {
-        if (strcmp(tabela_idef.tabela_simb[i].lexema, lexema) == 0 && tabela_idef.tabela_simb[i].escopo == escopo) {
-            return i;
+Simbolo* ts_insere(char* lexema, Classe classe, Tipo tipo) {
+    unsigned int indice = hash(lexema);
+
+    // Verifica se já existe um símbolo com mesmo lexema NO MESMO NÍVEL
+    Simbolo* s = tabela_hash[indice];
+    while (s != NULL) {
+        if (strcmp(lexema, s->lexema) == 0 && s->nivel == nivel_atual) {
+            // Erro: Re-declaração no mesmo escopo/nível
+            return NULL;
         }
-    }
-    return -1;
-}
-
-// Insere um novo símbolo na tabela de símbolos e testa se já foi declarado
-int Insercao_tabela(char lexema[], int escopo, int tipo, char classe[], bool zombie) {
-    if (tabela_idef.tamTab >= TAM_MAX_TAB) {
-        printf("[ERRO] Tabela de símbolos cheia.\n");
-        return -1;
+        s = s->proximo;
     }
 
-    int pos = Buscar_escopo(lexema, escopo);
-    if (pos != -1) {
-        printf("[ERRO] Identificador '%s' já declarado no escopo atual.\n", lexema);
-        return -1;
-    }
+    // Cria e preenche o novo símbolo
+    Simbolo* novo = (Simbolo*) malloc(sizeof(Simbolo));
+    strcpy(novo->lexema, lexema);
+    novo->classe = classe;
+    novo->tipo = tipo;
+    novo->nivel = nivel_atual;
+    novo->escopo = (nivel_atual == 0) ? ESCOPO_GLOBAL : ESCOPO_LOCAL;
 
-    TabSimb novoSimbolo;
-    strncpy(novoSimbolo.lexema, lexema, TAM_MAX_LEXEMA - 1);
-    novoSimbolo.lexema[TAM_MAX_LEXEMA - 1] = '\0'; 
-    novoSimbolo.escopo = escopo;
-    novoSimbolo.tipo = tipo;
-    strncpy(novoSimbolo.classe, classe, TAM_CATEGORIA - 1);
-    novoSimbolo.classe[TAM_CATEGORIA - 1] = '\0'; 
-    novoSimbolo.zombie = zombie;
+    novo->is_array = false; // Inicializa como não-array
     
-
-    tabela_idef.tabela_simb[tabela_idef.tamTab++] = novoSimbolo;
-    return 0;
-}
-
-// Remove o último símbolo inserido na tabela de símbolos
-int Remover_ultimo() {
-    if (tabela_idef.tamTab > 0) {
-        tabela_idef.tamTab--;
-        return 0;
+    // Define o estado zumbi inicial
+    if (classe == CLASSE_VAR_GLOBAL || classe == CLASSE_PROCEDIMENTO || classe == CLASSE_PROTOTIPO) {
+        novo->zombie = ZOMBIE_NA;
     } else {
-        printf("[ERRO] Tabela de símbolos vazia.\n");
-        return -1;
+        novo->zombie = ZOMBIE_VIVO;
     }
+    
+    // Insere na tabela
+    novo->proximo = tabela_hash[indice];
+    tabela_hash[indice] = novo;
+
+    printf("[TABELA DE SÍMBOLOS] Inseriu '%s' (classe: %d, nível: %d)\n", lexema, classe, nivel_atual);
+    return novo;
+}
+
+Simbolo* ts_busca(char* lexema) {
+    unsigned int indice = hash(lexema);
+    Simbolo* candidato = NULL;
+
+    Simbolo* s = tabela_hash[indice];
+    while (s != NULL) {
+        if (strcmp(lexema, s->lexema) == 0) {
+            // Encontrou um símbolo com o mesmo nome.
+            // Agora, verifica se ele é acessível do escopo atual.
+            if (s->nivel <= nivel_atual && s->zombie != ZOMBIE_MORTO) {
+                // Se o candidato ainda não foi encontrado, ou se este símbolo
+                // é de um escopo mais interno (nível maior) que o candidato anterior,
+                // ele se torna o novo candidato.
+                if (candidato == NULL || s->nivel > candidato->nivel) {
+                    candidato = s;
+                }
+            }
+        }
+        s = s->proximo;
+    }
+
+    // Retorna o melhor candidato encontrado (o do escopo mais próximo)
+    return candidato;
+}
+
+void ts_imprime() {
+    printf("\n--- CONTEÚDO COMPLETO DA TABELA DE SÍMBOLOS ---\n");
+    for (int i = 0; i < MAX_TABELA_HASH; i++) {
+        Simbolo* s = tabela_hash[i];
+        if (s) {
+            while (s != NULL) {
+                printf("Lexema: '%-15s' | Nível: %d | Escopo: %d | Classe: %d | Tipo: %d | Zombie: %d\n", 
+                       s->lexema, s->nivel, s->escopo, s->classe, s->tipo, s->zombie);
+                s = s->proximo;
+            }
+        }
+    }
+    printf("----------------------------------------------\n\n");
 }

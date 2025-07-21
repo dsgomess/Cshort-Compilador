@@ -3,371 +3,314 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <stdbool.h>
-
 #include "AnaLex.h"
-#include "AnaSint.h" // Garanta que o nome do seu cabeçalho está correto
-#include "FuncAuxCshort.h"
+#include "AnaSint.h"
 #include "TabSimb.h"
+#include "FuncAuxCshort.h"
 
-// --- Variáveis Globais para o Parser com Lookahead ---
-TOKEN tk;        // O token ATUAL que estamos analisando
-TOKEN lookahead; // O PRÓXIMO token, para "espiar" à frente
+TOKEN tk;
+TOKEN lookahead;
 
-// --- Protótipos das funções do parser ---
-void prog();
-void declaracao_global();
-void decl_var_resto(int tipo_declaracao);
-void func_resto(int tipo_retorno);
-void tipo();
-void decl_var();
-void tipos_param();
-void cmd();
-void atrib();
-void expr();
-void expr_simp();
-void termo();
-void fator();
-
-// --- Funções de Controle de Token com Lookahead ---
-
-// Avança para o próximo token: o lookahead vira o atual, e um novo lookahead é lido.
 void proximo_token() {
     tk = lookahead;
     if (tk.cat != FIM_PROG) {
         lookahead = AnaLex(fd);
     }
-    printf("[DEBUG] Linha %d | tk: código=%d, cat=%d | lookahead: código=%d, cat=%d\n",
-        contLinha, tk.codigo, tk.cat, lookahead.codigo, lookahead.cat);
 }
 
-// Consome o token esperado e avança para o próximo
 void consome(int esperado) {
-    if (tk.cat == esperado || tk.codigo == esperado) {
+    if (tk.cat == esperado || tk.val.codigo == esperado) {
         proximo_token();
     } else {
         char errMsg[100];
-        sprintf(errMsg, "Token inesperado na linha %d. Esperado: %d, Encontrado: %d (cat: %d)", contLinha, esperado, tk.codigo, tk.cat);
+        sprintf(errMsg, "Token inesperado na linha %d. Esperado: %d, Encontrado: %d (cat: %d)", contLinha, esperado, tk.val.codigo, tk.cat);
         errorSint(contLinha, errMsg);
     }
 }
 
-// --- Funções do Parser ---
-
-// REGRA: prog ::= { declaracao_global }
 void prog() {
-    PrintNodo("Programa", AVANCA);
-    // Inicializa o buffer com os dois primeiros tokens
+    ts_inicializa();
     proximo_token();
     proximo_token();
-
     while (tk.cat != FIM_PROG) {
         declaracao_global();
     }
-    PrintNodo("Fim do Programa", RETROCEDE);
-    printf("\n[SUCESSO] Análise sintática concluída.\n");
 }
 
-// Função "despachante" que resolve a ambiguidade entre declaração e função
 void declaracao_global() {
     int tipo_declaracao;
-
-    if(tk.codigo == VOID) {
-        tipo_declaracao = VOID;
+    char lexema_id[TAM_MAX_LEXEMA];
+    if(tk.val.codigo == VOID) {
+        tipo_declaracao = TIPO_NA;
         consome(VOID);
     } else {
-        tipo_declaracao = tk.codigo;
+        tipo_declaracao = tk.val.codigo;
         tipo();
     }
-    
+    strcpy(lexema_id, tk.val.lexema);
     consome(ID);
-
-    // Agora, com o token ATUAL, podemos decidir com segurança
-    if (tk.codigo == ABRE_PAR) {
+    if (tk.val.codigo == ABRE_PAR) {
+        if(ts_insere(lexema_id, CLASSE_PROCEDIMENTO, tipo_declaracao) == NULL){
+            errorSint(contLinha, "Procedimento re-declarado.");
+        }
         func_resto(tipo_declaracao);
-    } else if (tk.codigo == VIRGULA || tk.codigo == PONTO_VIRGULA || tk.codigo == ABRE_COL) {
-        decl_var_resto(tipo_declaracao);
     } else {
-        errorSint(contLinha, "Esperado início de função '(...' ou de declaração de variável ';', ',' ou '['.");
+        Simbolo* s = ts_insere(lexema_id, CLASSE_VAR_GLOBAL, tipo_declaracao);
+        if(s == NULL) {
+            errorSint(contLinha, "Variavel global re-declarada.");
+        }
+        if (tk.val.codigo == ABRE_COL) {
+            consome(ABRE_COL);
+            if(s) s->is_array = true;
+            consome(CONST_INT);
+            consome(FECHA_COL);
+        }
+        decl_var_resto(tipo_declaracao);
     }
 }
 
-// Processa o resto de uma declaração de variável, já sabendo o tipo e o primeiro ID
 void decl_var_resto(int tipo_declaracao) {
-    PrintNodo("Declaracao de Variaveis", AVANCA);
-    // O primeiro ID já foi consumido pelo dispatcher. Agora processamos o resto dele.
-    if (tk.codigo == ABRE_COL) {
-        consome(ABRE_COL);
-        consome(CONST_INT);
-        consome(FECHA_COL);
-    }
-
-    while (tk.codigo == VIRGULA) {
+    while (tk.val.codigo == VIRGULA) {
         consome(VIRGULA);
-        decl_var();
+        char lexema_id[TAM_MAX_LEXEMA];
+        strcpy(lexema_id, tk.val.lexema);
+        Simbolo* s = ts_insere(lexema_id, CLASSE_VAR_GLOBAL, tipo_declaracao);
+        if(s == NULL){
+            errorSint(contLinha, "Variavel global re-declarada.");
+        }
+        consome(ID);
+        if (tk.val.codigo == ABRE_COL) {
+            if(s) s->is_array = true;
+            consome(ABRE_COL);
+            consome(CONST_INT);
+            consome(FECHA_COL);
+        }
     }
     consome(PONTO_VIRGULA);
-    PrintNodo("Fim da Declaracao de Variaveis", RETROCEDE);
 }
 
-// Processa o resto de uma função, já sabendo o tipo de retorno e o nome
 void func_resto(int tipo_retorno) {
-    PrintNodo("Funcao", AVANCA);
+    ts_entra_escopo();
     consome(ABRE_PAR);
     tipos_param();
     consome(FECHA_PAR);
-    
     consome(ABRE_CHAVE);
-    // Declarações locais
-    while (tk.codigo == INT || tk.codigo == CHAR || tk.codigo == FLOAT || tk.codigo == BOOL) {
+    while (tk.val.codigo == INT || tk.val.codigo == CHAR || tk.val.codigo == FLOAT || tk.val.codigo == BOOL) {
         decl();
     }
-    // Comandos
-    while (tk.codigo != FECHA_CHAVE && tk.cat != FIM_PROG) {
+    while (tk.val.codigo != FECHA_CHAVE && tk.cat != FIM_PROG) {
         cmd();
     }
     consome(FECHA_CHAVE);
-    PrintNodo("Fim da Funcao", RETROCEDE);
+    ts_sai_escopo();
 }
 
-// REGRA: decl ::= tipo decl_var { ',' decl_var } ';'  (usado para declarações locais)
 void decl() {
-    PrintNodo("Declaracao Local", AVANCA);
+    int tipo_atual = tk.val.codigo;
     tipo();
+    char lexema_id[TAM_MAX_LEXEMA];
+    strcpy(lexema_id, tk.val.lexema);
+    Simbolo* s = ts_insere(lexema_id, CLASSE_VAR_LOCAL, tipo_atual);
+    if(s == NULL) {
+        errorSint(contLinha, "Variavel local re-declarada.");
+    }
     decl_var();
-    while (tk.codigo == VIRGULA) {
+    while (tk.val.codigo == VIRGULA) {
         consome(VIRGULA);
+        strcpy(lexema_id, tk.val.lexema);
+        s = ts_insere(lexema_id, CLASSE_VAR_LOCAL, tipo_atual);
+        if(s == NULL) {
+            errorSint(contLinha, "Variavel local re-declarada.");
+        }
         decl_var();
     }
     consome(PONTO_VIRGULA);
-    PrintNodo("Fim da Declaracao Local", RETROCEDE);
 }
 
-// REGRA: decl_var ::= id [ '[' intcon ']' ]
 void decl_var() {
-    PrintNodo("Variavel", AVANCA);
     consome(ID);
-    if (tk.codigo == ABRE_COL) {
+    if (tk.val.codigo == ABRE_COL) {
         consome(ABRE_COL);
         consome(CONST_INT);
         consome(FECHA_COL);
     }
-    PrintNodo("Fim da Variavel", RETROCEDE);
 }
 
-// REGRA: tipo ::= char | int | float | bool
 void tipo() {
-    PrintNodo("Tipo", AVANCA);
-    if (tk.codigo == CHAR || tk.codigo == INT || tk.codigo == FLOAT || tk.codigo == BOOL) {
-        consome(tk.codigo);
+    if (tk.val.codigo == CHAR || tk.val.codigo == INT || tk.val.codigo == FLOAT || tk.val.codigo == BOOL) {
+        consome(tk.val.codigo);
     } else {
         errorSint(contLinha, "Tipo (int, char, float, bool) esperado.");
     }
-    PrintNodo("Fim do Tipo", RETROCEDE);
 }
 
-// REGRA: tipos_param ::= void | tipo (id | &id | id['['']']) { ',' ... }
 void tipos_param() {
-    PrintNodo("Parametros", AVANCA);
-    if (tk.codigo == VOID) {
+    if (tk.val.codigo == VOID) {
         consome(VOID);
-    } else if (tk.codigo == FECHA_PAR) {
-        // Parâmetros vazios: func()
+        return;
     }
-    else {
+    while(tk.val.codigo == CHAR || tk.val.codigo == INT || tk.val.codigo == FLOAT || tk.val.codigo == BOOL){
+        int tipo_param = tk.val.codigo;
         tipo();
-        if (tk.codigo == REFERENCIA) consome(REFERENCIA);
+        if (tk.val.codigo == REFERENCIA) consome(REFERENCIA);
+        char lexema_param[TAM_MAX_LEXEMA];
+        strcpy(lexema_param, tk.val.lexema);
+        if(ts_insere(lexema_param, CLASSE_PARAMETRO, tipo_param) == NULL){
+            errorSint(contLinha, "Parametro re-declarado.");
+        }
         consome(ID);
-        if (tk.codigo == ABRE_COL) {
+        if(tk.val.codigo == ABRE_COL){
             consome(ABRE_COL);
             consome(FECHA_COL);
         }
-        while (tk.codigo == VIRGULA) {
+        if(tk.val.codigo == VIRGULA){
             consome(VIRGULA);
-            tipo();
-            if (tk.codigo == REFERENCIA) consome(REFERENCIA);
-            consome(ID);
-            if (tk.codigo == ABRE_COL) {
-                consome(ABRE_COL);
-                consome(FECHA_COL);
-            }
-        }
-    }
-    PrintNodo("Fim dos Parametros", RETROCEDE);
-}
-
-// REGRA: cmd ::= if | while | for | return | atrib | chamada_func | bloco
-// Em AnaSint.c, substitua estas funções:
-
-// REGRA: cmd ::= if | while | for | return | atrib | chamada_func | bloco
-void cmd() {
-    PrintNodo("Comando", AVANCA);
-
-    if (tk.codigo == IF) {
-        consome(IF);
-        consome(ABRE_PAR);
-        expr();
-        consome(FECHA_PAR);
-        cmd(); // corpo do if
-        if (tk.codigo == ELSE) {
-            consome(ELSE);
-            cmd(); // corpo do else
-        }
-
-    } else if (tk.codigo == WHILE) {
-        consome(WHILE);
-        consome(ABRE_PAR);
-        expr();
-        consome(FECHA_PAR);
-        cmd();
-
-    } else if (tk.codigo == FOR) {
-        consome(FOR);
-        consome(ABRE_PAR);
-        if (tk.codigo != PONTO_VIRGULA)
-            atrib();
-        else
-            consome(PONTO_VIRGULA);
-
-        if (tk.codigo != PONTO_VIRGULA)
-            expr();
-        consome(PONTO_VIRGULA);
-
-        if (tk.codigo != FECHA_PAR)
-            atrib();
-        consome(FECHA_PAR);
-        cmd();
-
-    } else if (tk.codigo == RETURN) {
-        consome(RETURN);
-        if (tk.codigo != PONTO_VIRGULA)
-            expr();
-        consome(PONTO_VIRGULA);
-
-    } else if (tk.codigo == ABRE_CHAVE) {
-        consome(ABRE_CHAVE);
-        while (tk.codigo != FECHA_CHAVE && tk.cat != FIM_PROG) {
-            cmd();
-        }
-        consome(FECHA_CHAVE);
-
-    } else if (tk.cat == ID) {
-        // Verifica se é atribuição ou apenas uma expressão
-        if (lookahead.codigo == ATRIBUICAO || lookahead.codigo == ABRE_COL) {
-            atrib(); // consome o ponto-e-vírgula internamente
         } else {
-            expr();
-            consome(PONTO_VIRGULA);
+            break;
         }
-
-    } else if (tk.codigo == PONTO_VIRGULA) {
-        consome(PONTO_VIRGULA);
-
-    } else {
-        errorSint(contLinha, "Comando inválido.");
     }
-
-    PrintNodo("Fim do Comando", RETROCEDE);
 }
 
+void cmd() {
+    if (tk.cat == ID) {
+        atrib();
+        consome(PONTO_VIRGULA);
+    } else if (tk.val.codigo == IF) {
+        consome(IF); consome(ABRE_PAR); expr(); consome(FECHA_PAR); cmd();
+        if (tk.val.codigo == ELSE) { consome(ELSE); cmd(); }
+    } else if (tk.val.codigo == WHILE) {
+        consome(WHILE); consome(ABRE_PAR); expr(); consome(FECHA_PAR); cmd();
+    } else if (tk.val.codigo == ABRE_CHAVE) {
+        consome(ABRE_CHAVE);
+        while (tk.val.codigo != FECHA_CHAVE && tk.cat != FIM_PROG) { cmd(); }
+        consome(FECHA_CHAVE);
+    }
+    // ... outras regras de comando ...
+    else {
+        // Comando vazio ou outro
+        consome(PONTO_VIRGULA);
+    }
+}
 
 void atrib() {
-    PrintNodo("Atribuicao", AVANCA);
-
+    char lexema_id[TAM_MAX_LEXEMA];
+    if(ts_busca(tk.val.lexema) == NULL){
+        char msg[100];
+        sprintf(msg, "Variavel '%s' nao declarada.", tk.val.lexema);
+        errorSint(contLinha, msg);
+    }
+    strcpy(lexema_id, tk.val.lexema);
     consome(ID);
 
-    if (tk.codigo == ABRE_COL) {
-        consome(ABRE_COL);
-        expr();
-        consome(FECHA_COL);
+    if (tk.val.codigo == ABRE_COL) {
+        consome(ABRE_COL); expr(); consome(FECHA_COL);
     }
-
     consome(ATRIBUICAO);
+
+    // Processa a expressão do lado direito, o que vai gerar o código
+    // para calcular o valor e colocá-lo no topo da pilha.
     expr();
 
-    consome(PONTO_VIRGULA); // ← essencial para evitar erro de linha 22
-
-    PrintNodo("Fim da Atribuicao", RETROCEDE);
+    // [GERADOR] Agora, emite a instrução para armazenar o valor
+    // do topo da pilha na variável.
+    printf("STORE %s\n", lexema_id);
 }
 
-
-// REGRA: expr ::= expr_simp [ op_rel expr_simp ]
 void expr() {
-    PrintNodo("Expressao", AVANCA);
-
-    // Esta parte para atribuições está correta
-    if (tk.cat == ID && lookahead.codigo == ATRIBUICAO) {
-        atrib();
-    } else {
+    expr_simp();
+    if (tk.cat == OP_RELAC) {
+        // Lógica de geração de código para operadores relacionais (ex: JUMP_IF_FALSE)
+        // seria adicionada aqui.
+        int op = tk.val.codigo;
+        consome(tk.cat);
         expr_simp();
-        if (tk.cat == OP_RELAC) {
-            // CORREÇÃO AQUI: Passamos o código do token atual, e não a categoria.
-            consome(tk.codigo); 
-            expr_simp();
+        // [GERADOR] Exemplo para operadores relacionais
+        if(op == IGUALDADE) emit("EQ");
+        else if(op == DIFERENTE) emit("NE");
+        else if(op == MENOR_QUE) emit("LT");
+        else if(op == MAIOR_QUE) emit("GT");
+        else if(op == MENOR_IGUAL) emit("LE");
+        else if(op == MAIOR_IGUAL) emit("GE");
+
+    }
+}
+
+void expr_simp() {
+    termo();
+    while (tk.val.codigo == ADICAO || tk.val.codigo == SUBTRACAO || tk.val.codigo == OR_LOGIC) {
+        int op = tk.val.codigo;
+        consome(op);
+        termo();
+
+        // [GERADOR] Emite a instrução APÓS processar o segundo operando.
+        if (op == ADICAO) {
+            emit("ADD");
+        } else if (op == SUBTRACAO) {
+            emit("SUB");
+        } else if (op == OR_LOGIC) {
+            emit("OR"); // Exemplo para operador lógico
         }
     }
-    PrintNodo("Fim da Expressao", RETROCEDE);
 }
 
-// REGRA: expr_simp ::= [ + | - ] termo { ( + | - | || ) termo }
-void expr_simp() {
-    PrintNodo("Expressao Simples", AVANCA);
-    if (tk.codigo == ADICAO || tk.codigo == SUBTRACAO) {
-        consome(tk.codigo); // CORRIGIDO
-    }
-    termo();
-    while (tk.codigo == ADICAO || tk.codigo == SUBTRACAO || tk.codigo == OR_LOGIC) {
-        consome(tk.codigo); // CORRIGIDO
-        termo();
-    }
-    PrintNodo("Fim da Expressao Simples", RETROCEDE);
-}
-
-// REGRA: termo ::= fator { ( * | / | && ) fator }
 void termo() {
-    PrintNodo("Termo", AVANCA);
     fator();
-    while (tk.codigo == MULTIPLICACAO || tk.codigo == DIVISAO || tk.codigo == AND_LOGIC) {
-        consome(tk.codigo); // CORRIGIDO
+    while (tk.val.codigo == MULTIPLICACAO || tk.val.codigo == DIVISAO || tk.val.codigo == AND_LOGIC) {
+        int op = tk.val.codigo;
+        consome(op);
         fator();
+
+        // [GERADOR] Emite a instrução APÓS processar o segundo operando.
+        if (op == MULTIPLICACAO) {
+            emit("MUL");
+        } else if (op == DIVISAO) {
+            emit("DIV");
+        } else if (op == AND_LOGIC) {
+            emit("AND"); // Exemplo para operador lógico
+        }
     }
-    PrintNodo("Fim do Termo", RETROCEDE);
 }
 
-// REGRA: fator ::= id | id '[' expr ']' | id '(' [expr_list] ')' | constantes | '(' expr ')' | '!' fator
 void fator() {
-    PrintNodo("Fator", AVANCA);
     if (tk.cat == ID) {
-        if (lookahead.codigo == ABRE_PAR) { // Chamada de função
+        char lexema_id[TAM_MAX_LEXEMA];
+        strcpy(lexema_id, tk.val.lexema);
+        if (ts_busca(lexema_id) == NULL) {
+            char msg[100];
+            sprintf(msg, "Identificador '%s' nao foi declarado.", lexema_id);
+            errorSint(contLinha, msg);
+        }
+
+        if (lookahead.val.codigo == ABRE_PAR) { // É uma chamada de função
+            // A geração de código para chamada de função seria aqui (ex: CALL <nome>, <n_params>)
             consome(ID);
             consome(ABRE_PAR);
-            if (tk.codigo != FECHA_PAR) {
-                expr();
-                while (tk.codigo == VIRGULA) {
-                    consome(VIRGULA);
-                    expr();
-                }
-            }
+            // ... processar argumentos ...
             consome(FECHA_PAR);
-        } else if (lookahead.codigo == ABRE_COL) { // Acesso a array
+        } else { // É uma variável
+            // [GERADOR] Emite LOAD para carregar o valor da variável para a pilha.
+            printf("LOAD %s\n", lexema_id);
             consome(ID);
-            consome(ABRE_COL);
-            expr();
-            consome(FECHA_COL);
-        } else { // É apenas uma variável
-            consome(ID);
+            if(tk.val.codigo == ABRE_COL) {
+                // ... geração de código para acesso a array ...
+                consome(ABRE_COL); expr(); consome(FECHA_COL);
+            }
         }
-    } else if (tk.cat == CONST_INT) consome(CONST_INT);
-    else if (tk.cat == CONST_FLOAT) consome(CONST_FLOAT);
-    else if (tk.cat == CONST_CHAR) consome(CONST_CHAR);
-    else if (tk.codigo == ABRE_PAR) {
+    } else if (tk.cat == CONST_INT) {
+        int valor = tk.val.valInt;
+        // [GERADOR] Emite PUSH para colocar uma constante na pilha.
+        emit_com_valor_int("PUSH", valor);
+        consome(CONST_INT);
+    } else if (tk.val.codigo == ABRE_PAR) {
         consome(ABRE_PAR);
         expr();
         consome(FECHA_PAR);
-    } else if (tk.codigo == NOT_LOGIC) {
-        consome(NOT_LOGIC); // CORRIGIDO
+    } else if (tk.val.codigo == NOT_LOGIC) {
+        consome(NOT_LOGIC);
         fator();
+        // [GERADOR] Emite a instrução de negação.
+        emit("NOT");
     } else {
         errorSint(contLinha, "Fator invalido.");
     }
-    PrintNodo("Fim do Fator", RETROCEDE);
 }
