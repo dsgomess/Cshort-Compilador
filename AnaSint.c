@@ -214,7 +214,16 @@ void cmd() { // atualizao no cmd para os esquemas de traduçao while if if e as 
         cmd();
 
         emit_salto("JUMP", label_inicio); 
-        emit_label(label_saida); 
+        emit_label(label_saida);
+
+    } else if (tk.val.codigo == FOR) {
+        consome(FOR);
+        consome(ABRE_PAR);
+
+        // 1. Parte de Inicialização (opcional)
+        if (tk.val.codigo != PONTO_VIRGULA) {
+            atrib();
+    }
 
     } else if (tk.cat == ID) {
         atrib();
@@ -278,40 +287,57 @@ Tipo expr() { //void
     return tipo_esq;
 }
 
-Tipo expr_simp() {//void
+Tipo expr_simp() {
     Tipo tipo_esq = termo();
-    while (tk.val.codigo == ADICAO || tk.val.codigo == SUBTRACAO) {
+    while (tk.val.codigo == ADICAO || tk.val.codigo == SUBTRACAO || tk.val.codigo == OR_LOGIC) {
         int op = tk.val.codigo;
         consome(op);
         Tipo tipo_dir = termo();
 
-        // [SEMÂNTICA] Verifica compatibilidade e atualiza o tipo resultante.
-        tipo_esq = tipo_resultante(tipo_esq, tipo_dir, contLinha);
-        
-        // [GERADOR] Emite instrução aritmética.
-        if (op == ADICAO) emit("ADD");
-        else emit("SUB");
+        if (op == OR_LOGIC) {
+            // [SEMÂNTICA] Para '||', ambos os operandos devem ser booleanos.
+            verifica_compat_booleana(tipo_esq, contLinha);
+            verifica_compat_booleana(tipo_dir, contLinha);
+            tipo_esq = TIPO_BOOL; // O resultado de uma operação lógica é sempre booleano.
+            emit("OR");
+        } else {
+            // [SEMÂNTICA] Para '+' e '-', usa a checagem aritmética.
+            tipo_esq = tipo_resultante(tipo_esq, tipo_dir, contLinha);
+            if (op == ADICAO) {
+                emit("ADD");
+            } else {
+                emit("SUB");
+            }
+        }
     }
     return tipo_esq;
 }
 
-Tipo termo() { //void
+Tipo termo() {
     Tipo tipo_esq = fator();
-    while (tk.val.codigo == MULTIPLICACAO || tk.val.codigo == DIVISAO) {
+    while (tk.val.codigo == MULTIPLICACAO || tk.val.codigo == DIVISAO || tk.val.codigo == AND_LOGIC) {
         int op = tk.val.codigo;
         consome(op);
         Tipo tipo_dir = fator();
-        
-        // [SEMÂNTICA] Verifica compatibilidade e atualiza o tipo resultante.
-        tipo_esq = tipo_resultante(tipo_esq, tipo_dir, contLinha);
 
-        // [GERADOR] Emite instrução aritmética.
-        if (op == MULTIPLICACAO) emit("MUL");
-        else emit("DIV");
+        if (op == AND_LOGIC) {
+            // [SEMÂNTICA] Para '&&', ambos os operandos devem ser booleanos.
+            verifica_compat_booleana(tipo_esq, contLinha);
+            verifica_compat_booleana(tipo_dir, contLinha);
+            tipo_esq = TIPO_BOOL; // O resultado de uma operação lógica é sempre booleano.
+            emit("AND");
+        } else {
+            // [SEMÂNTICA] Para '*' e '/', usa a checagem aritmética.
+            tipo_esq = tipo_resultante(tipo_esq, tipo_dir, contLinha);
+            if (op == MULTIPLICACAO) {
+                emit("MUL");
+            } else {
+                emit("DIV");
+            }
+        }
     }
     return tipo_esq;
 }
-
 Tipo fator() { // void
     Tipo tipo_retorno = TIPO_NA;
     if (tk.cat == ID) {
