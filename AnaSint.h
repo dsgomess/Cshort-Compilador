@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include "AnaLex.h"
+#include "TabSimb.h"
 
 // --- Variáveis Globais (usadas em múltiplos arquivos) ---
 extern TOKEN tk;
@@ -21,9 +22,9 @@ void tipo();
 void tipos_param();
 void cmd();
 void atrib();
-void expr();
-void expr_simp();
-void termo();
-void fator();
+Tipo expr(); // void
+Tipo expr_simp(); //void
+Tipo termo();//void
+Tipo fator();//void
 
 #endif // ANASINT_H

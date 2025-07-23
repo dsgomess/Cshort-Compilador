@@ -171,24 +171,62 @@ void tipos_param() {
     }
 }
 
-void cmd() {
-    if (tk.cat == ID) {
+// Em AnaSint.c
+
+void cmd() { // atualizao no cmd para os esquemas de traduçao while if if e as expr condicionais
+    if (tk.val.codigo == IF) {
+        consome(IF);
+        consome(ABRE_PAR);
+        expr();
+        consome(FECHA_PAR);
+
+        int label_else = novo_label(); 
+        emit_salto("JUMP_IF_FALSE", label_else);
+
+        cmd();
+
+        if (tk.val.codigo == ELSE) {
+            consome(ELSE);
+            int label_saida = novo_label(); 
+            emit_salto("JUMP", label_saida); 
+
+            emit_label(label_else);
+            cmd();
+
+            emit_label(label_saida); 
+        } else {
+            emit_label(label_else); 
+        }
+    } else if (tk.val.codigo == WHILE) {
+        consome(WHILE);
+
+        int label_inicio = novo_label(); 
+        int label_saida = novo_label();  
+
+        emit_label(label_inicio);
+
+        consome(ABRE_PAR);
+        expr();
+        consome(FECHA_PAR);
+        
+        emit_salto("JUMP_IF_FALSE", label_saida); 
+
+        cmd();
+
+        emit_salto("JUMP", label_inicio); 
+        emit_label(label_saida); 
+
+    } else if (tk.cat == ID) {
         atrib();
         consome(PONTO_VIRGULA);
-    } else if (tk.val.codigo == IF) {
-        consome(IF); consome(ABRE_PAR); expr(); consome(FECHA_PAR); cmd();
-        if (tk.val.codigo == ELSE) { consome(ELSE); cmd(); }
-    } else if (tk.val.codigo == WHILE) {
-        consome(WHILE); consome(ABRE_PAR); expr(); consome(FECHA_PAR); cmd();
     } else if (tk.val.codigo == ABRE_CHAVE) {
         consome(ABRE_CHAVE);
         while (tk.val.codigo != FECHA_CHAVE && tk.cat != FIM_PROG) { cmd(); }
         consome(FECHA_CHAVE);
     }
-    // ... outras regras de comando ...
+    // ... outras regras de comando (return, for, etc) ...
     else {
-        // Comando vazio ou outro
-        consome(PONTO_VIRGULA);
+        consome(PONTO_VIRGULA); // Comando vazio
     }
 }
 
@@ -216,15 +254,17 @@ void atrib() {
     printf("STORE %s\n", lexema_id);
 }
 
-void expr() {
-    expr_simp();
+Tipo expr() { //void
+    Tipo tipo_esq = expr_simp();
     if (tk.cat == OP_RELAC) {
-        // Lógica de geração de código para operadores relacionais (ex: JUMP_IF_FALSE)
-        // seria adicionada aqui.
         int op = tk.val.codigo;
         consome(tk.cat);
-        expr_simp();
-        // [GERADOR] Exemplo para operadores relacionais
+        Tipo tipo_dir = expr_simp();
+
+        // [SEMÂNTICA] Verifica compatibilidade dos operandos.
+        tipo_resultante(tipo_esq, tipo_dir, contLinha);
+        
+        // [GERADOR] Emite instrução relacional.
         if(op == IGUALDADE) emit("EQ");
         else if(op == DIFERENTE) emit("NE");
         else if(op == MENOR_QUE) emit("LT");
@@ -232,85 +272,86 @@ void expr() {
         else if(op == MENOR_IGUAL) emit("LE");
         else if(op == MAIOR_IGUAL) emit("GE");
 
+        // [SEMÂNTICA] O resultado de uma expressão relacional é sempre booleano.
+        return TIPO_BOOL;
     }
+    return tipo_esq;
 }
 
-void expr_simp() {
-    termo();
-    while (tk.val.codigo == ADICAO || tk.val.codigo == SUBTRACAO || tk.val.codigo == OR_LOGIC) {
+Tipo expr_simp() {//void
+    Tipo tipo_esq = termo();
+    while (tk.val.codigo == ADICAO || tk.val.codigo == SUBTRACAO) {
         int op = tk.val.codigo;
         consome(op);
-        termo();
+        Tipo tipo_dir = termo();
 
-        // [GERADOR] Emite a instrução APÓS processar o segundo operando.
-        if (op == ADICAO) {
-            emit("ADD");
-        } else if (op == SUBTRACAO) {
-            emit("SUB");
-        } else if (op == OR_LOGIC) {
-            emit("OR"); // Exemplo para operador lógico
-        }
+        // [SEMÂNTICA] Verifica compatibilidade e atualiza o tipo resultante.
+        tipo_esq = tipo_resultante(tipo_esq, tipo_dir, contLinha);
+        
+        // [GERADOR] Emite instrução aritmética.
+        if (op == ADICAO) emit("ADD");
+        else emit("SUB");
     }
+    return tipo_esq;
 }
 
-void termo() {
-    fator();
-    while (tk.val.codigo == MULTIPLICACAO || tk.val.codigo == DIVISAO || tk.val.codigo == AND_LOGIC) {
+Tipo termo() { //void
+    Tipo tipo_esq = fator();
+    while (tk.val.codigo == MULTIPLICACAO || tk.val.codigo == DIVISAO) {
         int op = tk.val.codigo;
         consome(op);
-        fator();
+        Tipo tipo_dir = fator();
+        
+        // [SEMÂNTICA] Verifica compatibilidade e atualiza o tipo resultante.
+        tipo_esq = tipo_resultante(tipo_esq, tipo_dir, contLinha);
 
-        // [GERADOR] Emite a instrução APÓS processar o segundo operando.
-        if (op == MULTIPLICACAO) {
-            emit("MUL");
-        } else if (op == DIVISAO) {
-            emit("DIV");
-        } else if (op == AND_LOGIC) {
-            emit("AND"); // Exemplo para operador lógico
-        }
+        // [GERADOR] Emite instrução aritmética.
+        if (op == MULTIPLICACAO) emit("MUL");
+        else emit("DIV");
     }
+    return tipo_esq;
 }
 
-void fator() {
+Tipo fator() { // void
+    Tipo tipo_retorno = TIPO_NA;
     if (tk.cat == ID) {
-        char lexema_id[TAM_MAX_LEXEMA];
-        strcpy(lexema_id, tk.val.lexema);
-        if (ts_busca(lexema_id) == NULL) {
+        Simbolo* s = ts_busca(tk.val.lexema);
+        if (s == NULL) {
             char msg[100];
-            sprintf(msg, "Identificador '%s' nao foi declarado.", lexema_id);
+            sprintf(msg, "Identificador '%s' nao foi declarado.", tk.val.lexema);
             errorSint(contLinha, msg);
         }
-
-        if (lookahead.val.codigo == ABRE_PAR) { // É uma chamada de função
-            // A geração de código para chamada de função seria aqui (ex: CALL <nome>, <n_params>)
-            consome(ID);
-            consome(ABRE_PAR);
-            // ... processar argumentos ...
-            consome(FECHA_PAR);
-        } else { // É uma variável
-            // [GERADOR] Emite LOAD para carregar o valor da variável para a pilha.
-            printf("LOAD %s\n", lexema_id);
-            consome(ID);
-            if(tk.val.codigo == ABRE_COL) {
-                // ... geração de código para acesso a array ...
-                consome(ABRE_COL); expr(); consome(FECHA_COL);
-            }
-        }
+        tipo_retorno = s->tipo; // [SEMÂNTICA] Atributo 'tipo' vem da Tabela de Símbolos.
+        
+        // [GERADOR] Emite LOAD para carregar o valor da variável para a pilha.
+        printf("LOAD %s\n", s->lexema);
+        
+        consome(ID);
+        // ... Lógica de chamada de função e acesso a array ...
     } else if (tk.cat == CONST_INT) {
-        int valor = tk.val.valInt;
-        // [GERADOR] Emite PUSH para colocar uma constante na pilha.
-        emit_com_valor_int("PUSH", valor);
+        // [GERADOR]
+        emit_com_valor_int("PUSH", tk.val.valInt);
+        // [SEMÂNTICA]
+        tipo_retorno = TIPO_INT;
         consome(CONST_INT);
+    } else if (tk.cat == CONST_FLOAT) {
+        // [GERADOR]
+        emit_com_valor_float("PUSH", tk.val.valFloat);
+        // [SEMÂNTICA]
+        tipo_retorno = TIPO_REAL;
+        consome(CONST_FLOAT);
+    } else if (tk.cat == CONST_CHAR) {
+        // [GERADOR]
+        emit_com_valor_int("PUSH", tk.val.caractere);
+        // [SEMÂNTICA]
+        tipo_retorno = TIPO_CHAR;
+        consome(CONST_CHAR);
     } else if (tk.val.codigo == ABRE_PAR) {
         consome(ABRE_PAR);
-        expr();
+        tipo_retorno = expr();
         consome(FECHA_PAR);
-    } else if (tk.val.codigo == NOT_LOGIC) {
-        consome(NOT_LOGIC);
-        fator();
-        // [GERADOR] Emite a instrução de negação.
-        emit("NOT");
     } else {
         errorSint(contLinha, "Fator invalido.");
     }
+    return tipo_retorno;
 }
